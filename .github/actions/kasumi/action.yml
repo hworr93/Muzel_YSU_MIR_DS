@@ -37,22 +37,32 @@ runs:
         KERNEL_SRC="${{ github.workspace }}/kernel"
         KASUMI_SRC="${{ github.workspace }}/kernel/kasumi/src"
 
-        # Prepare kernel module build dependencies
-        if [ -d "$KERNEL_SRC/out" ]; then
-          # If already built, use the output tree
-          make -C "$KERNEL_SRC" ARCH=arm64 \
-            O="$KERNEL_SRC/out" \
-            modules_prepare
-          make -C "$KERNEL_SRC" ARCH=arm64 \
-            O="$KERNEL_SRC/out" \
-            M="$KASUMI_SRC" \
-            modules
-        else
-          echo "No kernel output directory found. Building Kasumi module..."
-          make -C "$KERNEL_SRC" ARCH=arm64 \
-            M="$KASUMI_SRC" \
-            modules
+        # Find Kleaf kernel build output directory
+        KERNEL_OUT=""
+        for candidate in "$KERNEL_SRC/bazel-out"/*/bin/private/devices/google/muzel/lga_muzel_dist/lga_muzel/kernel_aarch64; do
+          if [ -f "$candidate/Module.symvers" ]; then
+            KERNEL_OUT="$candidate"
+            break
+          fi
+        done
+
+        if [ -z "$KERNEL_OUT" ]; then
+          # Broader search: find any .config in bazel-out that has CONFIG_KSU
+          KERNEL_OUT=$(find "$KERNEL_SRC/bazel-out" -name ".config" -exec grep -l "CONFIG_KSU" {} \; 2>/dev/null | head -1 | xargs dirname 2>/dev/null || true)
         fi
+
+        if [ -z "$KERNEL_OUT" ] || [ ! -f "$KERNEL_OUT/Module.symvers" ]; then
+          echo "WARNING: Could not find kernel build output in Bazel tree. Skipping Kasumi module build."
+          echo "Looked in: $KERNEL_SRC/bazel-out"
+          find "$KERNEL_SRC/bazel-out" -name "Module.symvers" 2>/dev/null || true
+          exit 0
+        fi
+
+        echo "Building Kasumi against kernel build output: $KERNEL_OUT"
+        make -C "${{ github.workspace }}/kernel/aosp" ARCH=arm64 \
+          O="$KERNEL_OUT" \
+          M="$KASUMI_SRC" \
+          modules
 
         # Copy module to output
         if [ -f "$KASUMI_SRC/kasumi_lkm.ko" ]; then

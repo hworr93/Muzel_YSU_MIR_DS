@@ -128,12 +128,6 @@ jobs:
       with:
         ksu_branch: ${{ inputs.ksu_branch }}
 
-    - name: Kasumi LKM
-      if: contains(inputs.feature_set, 'KASUMI') || inputs.feature_set == 'FULL'
-      uses: ./.github/actions/kasumi
-      with:
-        kasumi_branch: ${{ inputs.kasumi_branch }}
-
     - name: Baseband Guard
       if: (contains(inputs.feature_set, 'BBG') || inputs.feature_set == 'FULL')
       uses: ./.github/actions/bbg
@@ -272,6 +266,12 @@ jobs:
       with:
         version: ${{ inputs.version }}
         bypass: false
+
+    - name: Kasumi LKM
+      if: contains(inputs.feature_set, 'KASUMI') || inputs.feature_set == 'FULL'
+      uses: ./.github/actions/kasumi
+      with:
+        kasumi_branch: ${{ inputs.kasumi_branch }}
 
     - name: Get Cache Stats
       uses: ./.github/actions/cache-stats
