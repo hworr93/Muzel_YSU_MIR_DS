@@ -1,5 +1,5 @@
 name: Set Kernel Config
-description: Patch gki_defconfig directly (add or modify entries)
+description: Patch device defconfigs (add or modify entries for Kleaf validation)
 
 inputs:
   config_list:
@@ -9,25 +9,18 @@ inputs:
 runs:
   using: composite
   steps:
-  - name: Patch gki_defconfig
+  - name: Patch defconfigs
     shell: bash
     working-directory: ${{ github.workspace }}/kernel/aosp
     run: |
       set -euo pipefail
 
-      DEFCONFIG="../private/devices/google/muzel/muzel_defconfig"
       CONFIG_LIST="${{ inputs.config_list }}"
 
-      if [ ! -f "$DEFCONFIG" ]; then
-        echo "ERROR: gki_defconfig not found"
-        exit 1
-      fi
-
       apply_line() {
-        local line="$1"
+        local file="$1"
+        local line="$2"
         line="$(echo "$line" | xargs)"
-
-        # skip empty/comments
         [[ -z "$line" || "$line" == \#* ]] && return
 
         local key value
@@ -39,19 +32,30 @@ runs:
           value="y"
         fi
 
-        echo "Processing: $key=$value"
-
-        # if config exists anywhere in file → replace it
-        if grep -q "^$key=" "$DEFCONFIG"; then
-          sed -i "s|^$key=.*|$key=$value|g" "$DEFCONFIG"
-        elif grep -q "^# $key is not set" "$DEFCONFIG"; then
-          sed -i "s|^# $key is not set|$key=$value|g" "$DEFCONFIG"
+        if grep -q "^$key=" "$file"; then
+          sed -i "s|^$key=.*|$key=$value|g" "$file"
+        elif grep -q "^# $key is not set" "$file"; then
+          sed -i "s|^# $key is not set|$key=$value|g" "$file"
         else
-          # not present → append
-          echo "$key=$value" >> "$DEFCONFIG"
+          echo "$key=$value" >> "$file"
         fi
       }
 
-      while IFS= read -r line || [ -n "$line" ]; do
-        apply_line "$line"
-      done <<< "$CONFIG_LIST"
+      patch_file() {
+        local file="$1"
+        if [ ! -f "$file" ]; then
+          echo "Skipping $file (not found)"
+          return
+        fi
+        echo "Patching: $file"
+        while IFS= read -r line || [ -n "$line" ]; do
+          apply_line "$file" "$line"
+        done <<< "$CONFIG_LIST"
+      }
+
+      # Patch all device configs in the defconfig hierarchy so Kleaf validation passes
+      for defconfig in \
+        "../private/devices/google/lga/lga_defconfig" \
+        "../private/devices/google/muzel/muzel_defconfig"; do
+        patch_file "$defconfig"
+      done
