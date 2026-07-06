@@ -1,4 +1,4 @@
-bbrSetup Networking Options'
+name: 'Setup Networking Options'
 description: 'Set up kernel configuration fragment with required options'
 inputs:
   version:
