@@ -1,0 +1,72 @@
+name: Setup YukiSU
+description: Download and configure Anatdx YukiSU with version tracking
+inputs:
+  yukisu_branch:
+    description: 'YukiSU branch or commit (empty = latest main branch tip)'
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Download YukiSU
+      shell: bash
+      working-directory: ${{ github.workspace }}/kernel
+      run: |
+        set -euo pipefail
+
+        YUKISU_REPO="https://github.com/Anatdx/YukiSU.git"
+        YUKISU_INPUT="${{ inputs.yukisu_branch }}"
+        if [ -z "$YUKISU_INPUT" ]; then
+          YUKISU_INPUT="main"
+        fi
+
+        if git ls-remote --heads "$YUKISU_REPO" "$YUKISU_INPUT" | grep -q .; then
+          echo "Using YukiSU branch: $YUKISU_INPUT"
+          git clone --branch "$YUKISU_INPUT" --depth=50 "$YUKISU_REPO" YukiSU
+        else
+          echo "Using YukiSU commit: $YUKISU_INPUT"
+          git clone --depth=50 "$YUKISU_REPO" YukiSU
+          git -C YukiSU fetch --depth=50 origin "$YUKISU_INPUT"
+          git -C YukiSU checkout "$YUKISU_INPUT"
+        fi
+
+        cd YukiSU/kernel
+
+        COMMITS_COUNT=$(git rev-list --count HEAD)
+        BASE_VERSION=30000
+        KSU_VERSION=$(expr $COMMITS_COUNT "+" $BASE_VERSION)
+        sed -i "s/^CFLAGS_ksu.o += -DKSU_VERSION=[0-9]*$/CFLAGS_ksu.o += -DKSU_VERSION=${KSU_VERSION}/" Makefile
+
+        KSU_GIT_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.1")"
+        sed -i "s/^ccflags-y += -DKSU_VERSION_TAG=.*$/ccflags-y += -DKSU_VERSION_TAG=\"${KSU_GIT_TAG}\"/" Makefile
+
+        cd "${{ github.workspace }}/kernel/common"
+
+        ln -sf "$(realpath --relative-to=drivers "${{ github.workspace }}/kernel/YukiSU/kernel")" drivers/kernelsu
+        grep -q "kernelsu" drivers/Makefile || echo "obj-\$(CONFIG_KSU) += kernelsu/" >> drivers/Makefile
+        grep -q 'source "drivers/kernelsu/Kconfig"' drivers/Kconfig || \
+          sed -i '/endmenu/i\source "drivers/kernelsu/Kconfig"' drivers/Kconfig
+
+    - name: Extract YukiSU Version Info
+      id: yukisu-version
+      shell: bash
+      working-directory: ${{ github.workspace }}/kernel/YukiSU
+      run: |
+        KSU_GIT_VERSION=$(git rev-list --count HEAD 2>/dev/null)
+        KSU_GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        KSU_COMMIT=$(git rev-parse --short HEAD 2>/dev/null)
+        KSU_VERSION=$((30000 + KSU_GIT_VERSION))
+
+        echo "KSU_GIT_TAG=$KSU_GIT_TAG" >> $GITHUB_ENV
+        echo "KSU_VERSION=$KSU_VERSION" >> $GITHUB_ENV
+        echo "KSU_COMMIT=$KSU_COMMIT" >> $GITHUB_ENV
+
+    - name: Enable YukiSU Kernel Configs
+      uses: ./.github/actions/set-kernel-config
+      with:
+        config_list: |
+          CONFIG_KSU=m
+          CONFIG_KPROBES=y
+          CONFIG_KRETPROBES=y
+          CONFIG_HAVE_SYSCALL_TRACEPOINTS=y

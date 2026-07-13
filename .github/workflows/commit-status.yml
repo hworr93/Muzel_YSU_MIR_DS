@@ -29,29 +29,29 @@ jobs:
           }
 
           github_latest_commit() {
-            curl -fsSL "https://api.github.com/repos/doubledashdot/KernelSU/commits/master" | jq -r '.sha'
+            curl -fsSL "https://api.github.com/repos/Anatdx/YukiSU/commits/main" | jq -r '.sha'
           }
 
           github_latest_message() {
-            curl -fsSL "https://api.github.com/repos/doubledashdot/KernelSU/commits/master" | jq -r '.commit.message | split("\n")[0]'
+            curl -fsSL "https://api.github.com/repos/Anatdx/YukiSU/commits/main" | jq -r '.commit.message | split("\n")[0]'
           }
 
           {
             echo "# Commit Status Report"
             echo ""
-            echo "This report shows the latest upstream KernelSU commit."
+            echo "This report shows the latest upstream YukiSU commit."
             echo ""
           } >> "$summary_file"
 
           {
-            echo "## KernelSU"
+            echo "## YukiSU"
             echo ""
             echo "| Branch | Latest Commit | Latest Message |"
             echo "| --- | --- | --- |"
           } >> "$summary_file"
 
-          latest_kernelsu_commit="$(github_latest_commit)"
-          latest_kernelsu_message="$(github_latest_message)"
-          latest_kernelsu_message="$(sanitize_cell "$latest_kernelsu_message")"
+          latest_yukisu_commit="$(github_latest_commit)"
+          latest_yukisu_message="$(github_latest_message)"
+          latest_yukisu_message="$(sanitize_cell "$latest_yukisu_message")"
 
-          printf '| %s | %s | %s |\n' "master" "$latest_kernelsu_commit" "$latest_kernelsu_message" >> "$summary_file"
+          printf '| %s | %s | %s |\n' "main" "$latest_yukisu_commit" "$latest_yukisu_message" >> "$summary_file"

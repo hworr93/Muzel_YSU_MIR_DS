@@ -11,13 +11,18 @@ on:
         description: "Feature Set"
         required: false
         type: string
-      ksu_branch:
-        description: "KernelSU branch or commit (empty = latest master)"
+      yukisu_branch:
+        description: "YukiSU branch or commit (empty = latest main)"
         required: false
         type: string
         default: ""
       kasumi_branch:
         description: "Kasumi branch or commit (empty = latest main)"
+        required: false
+        type: string
+        default: ""
+      mirage_branch:
+        description: "Mirage branch or commit (empty = latest master)"
         required: false
         type: string
         default: ""
@@ -90,6 +95,7 @@ jobs:
       os_patch_level: ${{ matrix.os_patch_level }}
       variant: ${{ matrix.variant }}
       feature_set: ${{ inputs.feature_set }}
-      ksu_branch: ${{ inputs.ksu_branch }}
+      yukisu_branch: ${{ inputs.yukisu_branch }}
+      mirage_branch: ${{ inputs.mirage_branch }}
       kasumi_branch: ${{ inputs.kasumi_branch }}
     secrets: inherit

@@ -27,7 +27,11 @@ on:
       feature_set:
         required: true
         type: string
-      ksu_branch:
+      yukisu_branch:
+        required: false
+        type: string
+        default: ""
+      mirage_branch:
         required: false
         type: string
         default: ""
@@ -122,11 +126,11 @@ jobs:
         sublevel: ${{ steps.extract.outputs.sublevel }}
         os_patch_level: ${{ inputs.os_patch_level }}
 
-    - name: Setup KernelSU
-      if: contains(inputs.feature_set, 'KSUN') || inputs.feature_set == 'FULL'
-      uses: ./.github/actions/kernelsu
+    - name: Setup YukiSU
+      if: contains(inputs.feature_set, 'YUKISU') || inputs.feature_set == 'FULL'
+      uses: ./.github/actions/yukisu
       with:
-        ksu_branch: ${{ inputs.ksu_branch }}
+        yukisu_branch: ${{ inputs.yukisu_branch }}
 
     - name: Baseband Guard
       if: (contains(inputs.feature_set, 'BBG') || inputs.feature_set == 'FULL')
@@ -272,6 +276,10 @@ jobs:
       uses: ./.github/actions/kasumi
       with:
         kasumi_branch: ${{ inputs.kasumi_branch }}
+
+    - name: Mirage VFS
+      if: contains(inputs.feature_set, 'MIRAGE') || inputs.feature_set == 'FULL'
+      uses: ./.github/actions/mirage
 
     - name: Get Cache Stats
       uses: ./.github/actions/cache-stats

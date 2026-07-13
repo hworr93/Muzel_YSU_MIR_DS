@@ -1,0 +1,115 @@
+name: Setup Mirage VFS
+description: Download and integrate Mirage transparent stackable virtual filesystem
+inputs:
+  mirage_branch:
+    description: 'Mirage branch or commit (empty = latest master branch tip)'
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Download Mirage
+      shell: bash
+      working-directory: ${{ github.workspace }}/kernel
+      run: |
+        set -euo pipefail
+
+        MIRAGE_REPO="https://github.com/maxsteeel/Mirage.git"
+        MIRAGE_INPUT="${{ inputs.mirage_branch }}"
+        if [ -z "$MIRAGE_INPUT" ]; then
+          MIRAGE_INPUT="master"
+        fi
+
+        echo "Cloning Mirage from $MIRAGE_REPO (branch: $MIRAGE_INPUT)..."
+        git clone --depth=1 --branch "$MIRAGE_INPUT" "$MIRAGE_REPO" mirage
+
+        echo "Mirage cloned successfully."
+        echo "Commit: $(git -C mirage log -1 --format='%H')"
+        echo "Message: $(git -C mirage log -1 --format='%s')"
+
+    - name: Integrate Mirage into kernel source
+      shell: bash
+      working-directory: ${{ github.workspace }}/kernel
+      run: |
+        set -euo pipefail
+
+        KERNEL_SRC="${{ github.workspace }}/kernel"
+        MIRAGE_SRC="${{ github.workspace }}/kernel/mirage/src"
+
+        # Find the kernel source directory (aosp or common)
+        KERNEL_DIR=""
+        if [ -d "$KERNEL_SRC/aosp" ] && [ -f "$KERNEL_SRC/aosp/Makefile" ]; then
+          KERNEL_DIR="$KERNEL_SRC/aosp"
+        elif [ -d "$KERNEL_SRC/common" ] && [ -f "$KERNEL_SRC/common/Makefile" ]; then
+          KERNEL_DIR="$KERNEL_SRC/common"
+        else
+          echo "ERROR: Could not find kernel source directory"
+          exit 1
+        fi
+
+        echo "Integrating Mirage into $KERNEL_DIR/fs/mirage"
+
+        # Create symlink to Mirage source
+        ln -sfn "$(realpath --relative-to="$KERNEL_DIR/fs" "$MIRAGE_SRC")" "$KERNEL_DIR/fs/mirage"
+
+        # Add to fs/Kconfig
+        grep -q 'source "fs/mirage/Kconfig"' "$KERNEL_DIR/fs/Kconfig" || \
+          sed -i '/endmenu/i\source "fs/mirage/Kconfig"' "$KERNEL_DIR/fs/Kconfig"
+
+        # Add to fs/Makefile
+        grep -q 'obj-$(CONFIG_MIRAGE) += mirage/' "$KERNEL_DIR/fs/Makefile" || \
+          echo 'obj-$(CONFIG_MIRAGE) += mirage/' >> "$KERNEL_DIR/fs/Makefile"
+
+        echo "Mirage integration complete"
+
+    - name: Enable Mirage Kernel Configs
+      uses: ./.github/actions/set-kernel-config
+      with:
+        config_list: |
+          CONFIG_MIRAGE=y
+
+    - name: Build Mirage Module
+      if: false
+      shell: bash
+      working-directory: ${{ github.workspace }}/kernel
+      run: |
+        set -euo pipefail
+
+        KERNEL_SRC="${{ github.workspace }}/kernel"
+        MIRAGE_SRC="${{ github.workspace }}/kernel/mirage/src"
+
+        # Find Kleaf kernel build output directory
+        KERNEL_OUT=""
+        for candidate in "$KERNEL_SRC/bazel-out"/*/bin/private/devices/google/muzel/lga_muzel_dist/lga_muzel/kernel_aarch64; do
+          if [ -f "$candidate/Module.symvers" ]; then
+            KERNEL_OUT="$candidate"
+            break
+          fi
+        done
+
+        if [ -z "$KERNEL_OUT" ]; then
+          KERNEL_OUT=$(find "$KERNEL_SRC/bazel-out" -name ".config" -exec grep -l "CONFIG_KSU" {} \; 2>/dev/null | head -1 | xargs dirname 2>/dev/null || true)
+        fi
+
+        if [ -z "$KERNEL_OUT" ] || [ ! -f "$KERNEL_OUT/Module.symvers" ]; then
+          echo "WARNING: Could not find kernel build output in Bazel tree. Skipping Mirage module build."
+          find "$KERNEL_SRC/bazel-out" -name "Module.symvers" 2>/dev/null || true
+          exit 0
+        fi
+
+        echo "Building Mirage against kernel build output: $KERNEL_OUT"
+        make -C "${{ github.workspace }}/kernel/aosp" ARCH=arm64 \
+          O="$KERNEL_OUT" \
+          M="$MIRAGE_SRC" \
+          modules
+
+        # Copy module to output
+        if [ -f "$MIRAGE_SRC/mirage.ko" ]; then
+          mkdir -p "${{ github.workspace }}/mirage-out"
+          cp "$MIRAGE_SRC/mirage.ko" "${{ github.workspace }}/mirage-out/"
+          echo "Mirage module built: $MIRAGE_SRC/mirage.ko"
+        else
+          echo "WARNING: mirage.ko not found at $MIRAGE_SRC/"
+          find "$MIRAGE_SRC" -name "*.ko" 2>/dev/null || true
+        fi
