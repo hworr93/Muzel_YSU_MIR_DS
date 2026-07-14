@@ -28,7 +28,8 @@ runs:
         KERNEL_BRANCH="ZP11.251031.009"
 
         echo "Cloning Pixel 10 (muzel) kernel from $KERNEL_REPO (branch: $KERNEL_BRANCH)..."
-        git clone --depth=1 --branch "$KERNEL_BRANCH" "$KERNEL_REPO" .
+        # Skip LFS files to avoid quota issues
+        GIT_LFS_SKIP_SMUDGE=1 git clone --depth=1 --branch "$KERNEL_BRANCH" "$KERNEL_REPO" .
 
         echo "Kernel source cloned successfully."
         echo "Commit: $(git log -1 --format='%H')"
