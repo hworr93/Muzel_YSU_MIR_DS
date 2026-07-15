@@ -97,7 +97,7 @@ runs:
           if grep -q 'name = "arg_wrapper"' "$BUILD_FILE"; then
             if ! grep -q 'copts.*std=c++17' "$BUILD_FILE"; then
               echo "[INFO] Applying C++17 fix to arg_wrapper..."
-              sed -i ':a;N;$!ba;s/\(name = "arg_wrapper".*visibility = \["\/\/build\/kernel:__pkg__"\],\)/\1\n    copts = [\n        "-std=c++17",\n    ],\n    linkopts = [\n        "-lc++fs",\n    ],/' "$BUILD_FILE"
+              sed -i ':a;N;$!ba;s/\(name = "arg_wrapper".*visibility = \["\/\/build\/kernel:__pkg__"\],\)/\1\n    copts = [\n        "-std=c++17",\n    ],\n    linkopts = [\n        "-lstdc++fs",\n    ],/' "$BUILD_FILE"
               echo "ARG_WRAPPER_FIX=true" >> "$GITHUB_ENV"
             else
               echo "[INFO] C++17 fix already present in arg_wrapper."
