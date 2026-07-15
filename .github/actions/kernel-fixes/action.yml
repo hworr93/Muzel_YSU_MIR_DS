@@ -111,7 +111,6 @@ runs:
           echo "[WARN] BUILD.bazel not found at $BUILD_FILE."
           echo "ARG_WRAPPER_FIX=file_missing" >> "$GITHUB_ENV"
         fi
-        fi
 
     - name: 'Final Kernel Fixes Summary'
       shell: bash
